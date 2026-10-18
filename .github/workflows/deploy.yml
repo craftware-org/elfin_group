@@ -33,7 +33,7 @@ jobs:
   deploy:
     # Fork PRs never receive secrets, so skip them instead of failing.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
       name: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
@@ -45,9 +45,9 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       TARGET: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
