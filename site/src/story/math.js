@@ -1,0 +1,21 @@
+export const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+export const lerp = (a, b, t) => a + (b - a) * t;
+/** smoothstep-style ease on 0..1 */
+export const smooth = (t) => t * t * (3 - 2 * t);
+export const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+/** frame-rate independent exponential smoothing */
+export const damp = (current, target, lambda, dt) => lerp(current, target, 1 - Math.exp(-lambda * dt));
+/** 0 → 1 → 0 bump between a and c, peaking at b */
+export const bump = (x, a, b, c) => (x <= a || x >= c ? 0 : x < b ? smooth((x - a) / (b - a)) : smooth((c - x) / (c - b)));
+
+/** Deterministic PRNG so the generated world is identical on every visit. */
+export function rng(seed = 1) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
