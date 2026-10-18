@@ -61,7 +61,7 @@ Browsers without WebGL 2 get a static gold-on-black intro, and the chapter text 
 
 ## Content to confirm with the client before launch
 
-- Domain: elfinproperties.com currently does not resolve. Set `VITE_SITE_URL` to the live domain.
+- Domain: the site runs on the placeholder https://elfingroup.vercel.app. When the client's real domain is ready, change `VITE_SITE_URL` plus `robots.txt` and `sitemap.xml`.
 - Project statuses. Casa, Sapphire and Castle are shown as delivered, based on homeowner testimonials on their old site.
 - Elfin Springfield's location (it has no map pin until confirmed).
 - RERA registration numbers, if any. None are shown on the site, because none could be verified.
