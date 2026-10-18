@@ -14,6 +14,23 @@ npm run preview   # serve dist/ on http://localhost:4173
 
 Node 18+ is required. The build is fully static, so `dist/` can be hosted on Vercel (config in `vercel.json`), Hostinger or any CDN.
 
+## Deploying
+
+Live (placeholder domain): **https://elfingroup.vercel.app**, served by the Vercel project `elfingroup`.
+
+Deploys run through GitHub Actions (`.github/workflows/deploy.yml`):
+
+| Event | Result |
+|---|---|
+| Push to `main` touching `site/**` | Production deploy to elfingroup.vercel.app |
+| Pull request touching `site/**` | Preview deploy. The URL appears in the run summary |
+| Actions → "Deploy to Vercel" → Run workflow | Production deploy on demand |
+
+It needs one repository secret, `VERCEL_TOKEN` (create it at vercel.com/account/tokens).
+Vercel's own GitHub integration isn't used, because the repo's owner (`craftware-org`) is a different GitHub account from the one linked to Vercel.
+
+For a manual deploy from this folder: `vercel deploy --prod`. The folder is already linked to `elfingroup` through `.vercel/`, which is git-ignored.
+
 ## Configuration (`.env`)
 
 | Variable | Used for |

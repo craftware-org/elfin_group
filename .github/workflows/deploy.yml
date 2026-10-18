@@ -1,0 +1,98 @@
+# Deploys the Elfin Group site (site/) to the Vercel project "elfingroup".
+#   push to main         -> production  (https://elfingroup.vercel.app)
+#   pull request         -> preview URL (shown in the run summary)
+#   manual run           -> production
+# Requires one repository secret: VERCEL_TOKEN (vercel.com/account/tokens).
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/deploy.yml"
+  pull_request:
+    paths:
+      - "site/**"
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Identifiers, not credentials: useless without the token.
+  VERCEL_ORG_ID: team_d4Tc3qWf0XitBOAMjcFvSkXr
+  VERCEL_PROJECT_ID: prj_aJctBAtjJrN8pbOfjDlnXPP6CRdP
+  VERCEL_CLI_VERSION: 52.2.1
+
+jobs:
+  deploy:
+    # Fork PRs never receive secrets, so skip them instead of failing.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
+      url: ${{ steps.deploy.outputs.url }}
+    defaults:
+      run:
+        working-directory: site
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      TARGET: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Check VERCEL_TOKEN secret
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::Add a VERCEL_TOKEN repository secret (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Install Vercel CLI
+        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
+
+      - name: Pull project settings
+        run: vercel pull --yes --environment="$TARGET" --token="$VERCEL_TOKEN"
+
+      - name: Build
+        run: |
+          if [ "$TARGET" = production ]; then
+            vercel build --prod --token="$VERCEL_TOKEN"
+          else
+            vercel build --token="$VERCEL_TOKEN"
+          fi
+
+      - name: Deploy
+        id: deploy
+        run: |
+          if [ "$TARGET" = production ]; then
+            out=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          else
+            out=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")
+          fi
+          # The CLI prints either a bare URL or a JSON summary; take the first deployment URL.
+          url=$(printf '%s\n' "$out" | grep -oE 'https://[A-Za-z0-9.-]+\.vercel\.app' | head -n 1)
+          if [ -z "$url" ]; then
+            echo "$out"
+            echo "::error::Could not find the deployment URL in the Vercel CLI output."
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Deployed to Vercel ($TARGET)"
+            echo ""
+            echo "- Deployment: $url"
+            if [ "$TARGET" = production ]; then echo "- Live: https://elfingroup.vercel.app"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
