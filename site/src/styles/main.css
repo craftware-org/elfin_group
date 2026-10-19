@@ -199,11 +199,16 @@ button { font: inherit; color: inherit; }
 .scroll-progress span { display: block; height: 100%; background: var(--gold); transform: scaleX(0); transform-origin: 0 50%; }
 
 /* ---------- Story (3D intro) ---------- */
-.story { position: relative; height: 620vh; background: var(--white); color: var(--white); }
+/* The story section is only a scroll spacer. The stage is fixed to the screen (not sticky):
+   some mobile browsers fail to pin sticky elements, which left the 3D half off-screen.
+   Later sections sit on a higher layer and slide up over the stage like a curtain. */
+.story { position: relative; z-index: 0; height: 620vh; color: var(--white); }
 .story__stage {
-  position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden;
-  background: var(--black); transform-origin: 50% 100%; will-change: transform;
+  position: fixed; inset: 0; z-index: 0; overflow: hidden;
+  background: var(--black); transform-origin: 50% 0; will-change: transform;
 }
+.story__stage.is-off { visibility: hidden; }
+.section, .cta-band, .footer { position: relative; z-index: 1; }
 .story__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; will-change: transform, opacity; }
 .story__dim { position: absolute; inset: 0; background: var(--black); opacity: 0; pointer-events: none; }
 .story__shade {

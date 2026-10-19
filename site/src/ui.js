@@ -31,6 +31,7 @@ export function initUI({ scrollToTarget, reduceMotion, gsap, ScrollTrigger }) {
 function initNav(ScrollTrigger) {
   const nav = $("#nav");
   const story = $("#story");
+  const stage = $(".story__stage");
   const wa = $("#waFloat");
   const toggle = $("#navToggle");
   const menu = $("#mobileMenu");
@@ -49,7 +50,10 @@ function initNav(ScrollTrigger) {
   // WhatsApp button and phone action bar are right even after a jump (anchor, reload mid-page).
   const onScroll = () => {
     const y = window.scrollY;
-    const pastStory = y > story.offsetTop + story.offsetHeight - nav.offsetHeight;
+    const storyEnd = story.offsetTop + story.offsetHeight;
+    const pastStory = y > storyEnd - nav.offsetHeight;
+    // the fixed 3D stage is fully covered once the story spacer has scrolled away
+    stage.classList.toggle("is-off", y >= storyEnd);
     nav.classList.toggle("is-solid", pastStory);
     nav.classList.toggle("is-hidden", pastStory && y > lastY + 4 && !menuOpen);
     if (y < lastY - 4) nav.classList.remove("is-hidden");
@@ -420,9 +424,9 @@ function initParallax(gsap) {
   }
 }
 
-// The 3D stage settles back slightly as the page arrives.
+// As the page slides up over the fixed 3D stage, the stage eases back and dims.
 function initStoryExit(gsap) {
-  gsap.timeline({ scrollTrigger: { trigger: "#story", start: "bottom bottom", end: "bottom top", scrub: 0.8 } })
-    .to(".story__stage", { scale: 0.95, borderRadius: 8, ease: "none" }, 0)
-    .to(".story__dim", { opacity: 0.4, ease: "none" }, 0);
+  gsap.timeline({ scrollTrigger: { trigger: "#story", start: "bottom bottom", end: "bottom top", scrub: 0.6 } })
+    .to(".story__stage", { scale: 0.94, ease: "none" }, 0)
+    .to(".story__dim", { opacity: 0.6, ease: "none" }, 0);
 }

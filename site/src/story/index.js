@@ -124,13 +124,13 @@ export async function createStory({ canvas, stage, labelLayer, haze, onLoadProgr
     { passive: true },
   );
 
-  new IntersectionObserver(
-    ([entry]) => {
-      visible = entry.isIntersecting;
-      if (visible) resync = true;
-    },
-    { rootMargin: "100px" },
-  ).observe(stage);
+  // The stage is fixed to the screen, so watch the story section (the scroll spacer):
+  // once it has scrolled away the stage is fully covered, so hide it and stop rendering.
+  new IntersectionObserver(([entry]) => {
+    visible = entry.isIntersecting;
+    stage.classList.toggle("is-off", !visible);
+    if (visible) resync = true;
+  }).observe(stage.parentElement);
 
   /* Adaptive resolution: trade pixels for a steady frame rate. */
   const maxDpr = quality.dpr;
