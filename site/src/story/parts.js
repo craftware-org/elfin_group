@@ -41,10 +41,10 @@ export function signTexture(text, { bg = "#0a0a0a", fg = GOLD, w = 1024, h = 192
     ctx.lineWidth = 6;
     ctx.strokeRect(10, 10, w - 20, h - 20);
     ctx.fillStyle = fg;
-    ctx.font = `600 ${Math.round(h * 0.46)}px "Cormorant Garamond", Georgia, serif`;
+    ctx.font = `400 ${Math.round(h * 0.56)}px "Bebas Neue", Impact, sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.letterSpacing = "18px";
+    ctx.letterSpacing = "14px";
     ctx.fillText(text, w / 2, h / 2 + 4);
   });
 }

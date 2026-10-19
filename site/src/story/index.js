@@ -60,6 +60,8 @@ export async function createStory({ canvas, stage, labelLayer, haze, onLoadProgr
   manager.onProgress = (_url, done, total) => onLoadProgress?.(done / total);
 
   const earth = createEarthWorld({ loader: new THREE.TextureLoader(manager), quality });
+  // The 3D signboards are drawn with Bebas Neue, so make sure it is loaded first.
+  await document.fonts?.load(`400 64px "Bebas Neue"`).catch(() => {});
   const ground = createGroundWorld({ quality });
   const worlds = [earth, ground];
 

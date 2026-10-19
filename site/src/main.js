@@ -1,6 +1,5 @@
-import "@fontsource/cormorant-garamond/latin-500.css";
-import "@fontsource/cormorant-garamond/latin-500-italic.css";
-import "@fontsource/cormorant-garamond/latin-600.css";
+import "@fontsource/bebas-neue/latin-400.css";
+import "@fontsource-variable/edu-qld-hand";
 import "@fontsource-variable/manrope";
 import "./styles/main.css";
 
