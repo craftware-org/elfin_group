@@ -75,8 +75,8 @@ export function initChapters({ chapters, starts, reduceMotion }) {
     }
     const o = enter * (1 - exit);
     const y = (1 - enter) * 36 - exit * 26;
-    const blur = (1 - enter) * 10 + exit * 6;
-    const s = item.kind === "chip" ? 0.85 + 0.15 * enter : 1;
+    const blur = (1 - enter) * 4 + exit * 3;
+    const s = 1;
     css = `${o.toFixed(3)}|${y.toFixed(1)}|${blur.toFixed(1)}|${s.toFixed(3)}`;
     if (css === item.last) return;
     item.last = css;

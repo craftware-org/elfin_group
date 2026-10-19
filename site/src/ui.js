@@ -3,7 +3,6 @@ import { LOCATIONS } from "./data.js";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const WHATSAPP = import.meta.env.VITE_WHATSAPP || "918147284999";
-const finePointer = matchMedia("(hover: hover) and (pointer: fine)").matches;
 
 /** Element with a class and plain-text content (never parsed as HTML). */
 function node(tag, className = "", text = "") {
@@ -13,25 +12,18 @@ function node(tag, className = "", text = "") {
   return el;
 }
 
-export function initUI({ scrollToTarget, reduceMotion, gsap, ScrollTrigger, lenis }) {
+export function initUI({ scrollToTarget, reduceMotion, gsap, ScrollTrigger }) {
   $("#year").textContent = String(new Date().getFullYear());
   initNav(ScrollTrigger);
   initSplit();
   initReveal();
-  initCounters(gsap, reduceMotion);
   initFilters();
   initMap();
   initPlan();
   initForm(scrollToTarget);
   if (!reduceMotion) {
-    initMarquees(gsap, lenis);
     initStoryExit(gsap);
-    initExpandingSections(gsap);
     initParallax(gsap);
-  }
-  if (finePointer && !reduceMotion) {
-    initMagnetic(gsap);
-    initTilt(gsap);
   }
 }
 
@@ -69,6 +61,7 @@ function initNav(ScrollTrigger) {
   addEventListener("scroll", onScroll, { passive: true });
   ScrollTrigger.create({ start: 0, end: "max", onUpdate: onScroll });
   addEventListener("load", onScroll);
+  addEventListener("resize", onScroll);
   onScroll();
 
   [...menu.querySelectorAll("nav a"), menu.querySelector(".btn"), menu.querySelector(".mobile-menu__phone")].forEach((el, i) =>
@@ -193,30 +186,6 @@ function initReveal() {
   clipGroups.forEach((_els, host) => clipIo.observe(host));
 }
 
-/* ---------------- stats ---------------- */
-function initCounters(gsap, reduceMotion) {
-  const io = new IntersectionObserver(
-    (entries) => {
-      for (const en of entries) {
-        if (!en.isIntersecting) continue;
-        io.unobserve(en.target);
-        const el = en.target;
-        const end = Number(el.dataset.count);
-        const suffix = el.dataset.suffix || "";
-        const fmt = (v) => `${Math.round(v).toLocaleString("en-IN")}${suffix}`;
-        if (reduceMotion) {
-          el.textContent = fmt(end);
-          continue;
-        }
-        const o = { v: 0 };
-        gsap.to(o, { v: end, duration: 2.2, ease: "power3.out", onUpdate: () => (el.textContent = fmt(o.v)) });
-      }
-    },
-    { threshold: 0.6 },
-  );
-  $$("[data-count]").forEach((el) => io.observe(el));
-}
-
 /* ---------------- project filters ---------------- */
 function initFilters() {
   const buttons = $$(".filters .filter");
@@ -245,19 +214,19 @@ function initMap() {
 
   const render = (loc) => {
     const actions = node("div", "map__panel-actions");
-    const enquire = node("a", "btn btn--gold btn--sm", "Enquire");
+    const enquire = node("a", "btn btn--gold", "Enquire");
     enquire.href = "#contact";
     enquire.dataset.enquire = loc.enquire;
     actions.append(enquire);
     if (loc.maps) {
-      const maps = node("a", "btn btn--line btn--sm", "Open in Google Maps");
+      const maps = node("a", "btn btn--line", "Open in Google Maps");
       maps.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.maps)}`;
       maps.target = "_blank";
       maps.rel = "noopener";
       actions.append(maps);
     }
     panel.replaceChildren(
-      node("span", `badge${loc.badge ? ` badge--${loc.badge}` : ""}`, loc.status),
+      node("span", loc.badge === "new" ? "badge badge--gold" : "badge", loc.status),
       node("p", "project__kicker", loc.kicker),
       node("h3", "", loc.name),
       node("p", "", loc.text),
@@ -319,9 +288,9 @@ function initPlan() {
 
   el("rect", { x: 0, y: 0, width: 640, height: 400, fill: "#f6efe0" });
   el("rect", { class: "park", x: 40, y: 20, width: 560, height: 70, rx: 10 });
-  el("text", { class: "park-label", x: 320, y: 60, "text-anchor": "middle" }).textContent = "PARK & OPEN SPACE";
+  el("text", { class: "park-label", x: 320, y: 60, "text-anchor": "middle" }).textContent = "Park and open space";
   el("rect", { class: "park", x: 40, y: 310, width: 560, height: 70, rx: 10 });
-  el("text", { class: "park-label", x: 320, y: 350, "text-anchor": "middle" }).textContent = "AMENITY AREA";
+  el("text", { class: "park-label", x: 320, y: 350, "text-anchor": "middle" }).textContent = "Amenity area";
   el("rect", { class: "road", x: 0, y: 190, width: 640, height: 20 });
   el("rect", { class: "road", x: 305, y: 96, width: 30, height: 208 });
   el("path", { class: "road-mark", d: "M0 200H640M320 96V304" });
@@ -439,87 +408,21 @@ function initForm(scrollToTarget) {
   void scrollToTarget;
 }
 
-/* ---------------- micro-interactions ---------------- */
-function initMagnetic(gsap) {
-  for (const el of $$("[data-magnetic]")) {
-    const xTo = gsap.quickTo(el, "x", { duration: 0.6, ease: "power3" });
-    const yTo = gsap.quickTo(el, "y", { duration: 0.6, ease: "power3" });
-    el.addEventListener("pointermove", (e) => {
-      const r = el.getBoundingClientRect();
-      xTo((e.clientX - (r.left + r.width / 2)) * 0.28);
-      yTo((e.clientY - (r.top + r.height / 2)) * 0.38);
-    });
-    el.addEventListener("pointerleave", () => {
-      xTo(0);
-      yTo(0);
-    });
-  }
-}
-
-function initTilt(gsap) {
-  for (const el of $$("[data-tilt]")) {
-    gsap.set(el, { transformPerspective: 900 });
-    const rx = gsap.quickTo(el, "rotationX", { duration: 0.8, ease: "power3" });
-    const ry = gsap.quickTo(el, "rotationY", { duration: 0.8, ease: "power3" });
-    el.addEventListener("pointermove", (e) => {
-      const r = el.getBoundingClientRect();
-      ry(((e.clientX - r.left) / r.width - 0.5) * 8);
-      rx(-((e.clientY - r.top) / r.height - 0.5) * 8);
-    });
-    el.addEventListener("pointerleave", () => {
-      rx(0);
-      ry(0);
-    });
-  }
-}
-
+/* ---------------- calm motion ---------------- */
+// Photos drift a few percent against the scroll; nothing else moves on its own.
 function initParallax(gsap) {
-  for (const img of $$(".about__media img, .shot img, .project__media img")) {
+  for (const img of $$(".about__media img, .shot img, .project__media img, .cta-band__media img")) {
     gsap.fromTo(
       img,
-      { yPercent: -6, scale: 1.14 },
-      { yPercent: 6, scale: 1.14, ease: "none", scrollTrigger: { trigger: img.closest("figure, .project__media"), scrub: 0.6 } },
+      { yPercent: -3, scale: 1.07 },
+      { yPercent: 3, scale: 1.07, ease: "none", scrollTrigger: { trigger: img.closest("figure, .project__media"), scrub: 0.6 } },
     );
   }
 }
 
-/* ---------------- scroll-velocity marquees ---------------- */
-function initMarquees(gsap, lenis) {
-  const tracks = $$("[data-velocity-marquee]").map((el) => ({ el, dir: Number(el.dataset.velocityMarquee) || 1, x: 0, skew: 0, w: 0 }));
-  const measure = () => tracks.forEach((t) => (t.w = t.el.scrollWidth / 2));
-  measure();
-  addEventListener("resize", measure);
-  let velocity = 0;
-  lenis?.on("scroll", (l) => (velocity = l.velocity));
-  gsap.ticker.add((_time, deltaMs) => {
-    const dt = Math.min(deltaMs, 50) / 1000;
-    const boost = Math.max(-40, Math.min(40, velocity));
-    for (const t of tracks) {
-      t.x -= t.dir * (60 + Math.abs(boost) * 26) * dt * Math.sign(boost || 1);
-      if (t.w) t.x = ((t.x % t.w) - t.w) % t.w;
-      t.skew += (boost * -0.35 - t.skew) * Math.min(1, dt * 6);
-      t.el.style.transform = `translate3d(${t.x.toFixed(2)}px, 0, 0) skewX(${t.skew.toFixed(2)}deg)`;
-    }
-    velocity *= 0.92;
-  });
-}
-
-/* ---------------- story recedes into a card as the page arrives ---------------- */
+// The 3D stage settles back slightly as the page arrives.
 function initStoryExit(gsap) {
-  const stage = $(".story__stage");
   gsap.timeline({ scrollTrigger: { trigger: "#story", start: "bottom bottom", end: "bottom top", scrub: 0.8 } })
-    .to(stage, { scale: 0.86, borderRadius: 36, ease: "none" }, 0)
-    .to(".story__dim", { opacity: 0.55, ease: "none" }, 0);
-}
-
-/* ---------------- dark sections open from a card to full bleed ---------------- */
-function initExpandingSections(gsap) {
-  const inset = innerWidth < 760 ? 3 : 5;
-  for (const el of $$(".progress, .cta-band")) {
-    gsap.fromTo(
-      el,
-      { clipPath: `inset(0% ${inset}% 0% ${inset}% round 40px)` },
-      { clipPath: "inset(0% 0% 0% 0% round 0px)", ease: "none", scrollTrigger: { trigger: el, start: "top bottom", end: "top 25%", scrub: 0.8 } },
-    );
-  }
+    .to(".story__stage", { scale: 0.95, borderRadius: 8, ease: "none" }, 0)
+    .to(".story__dim", { opacity: 0.4, ease: "none" }, 0);
 }

@@ -187,7 +187,7 @@ bootStory().finally(() => {
 $("#skipIntro").addEventListener("click", () => scrollToTarget("#about"));
 
 /* ---------------- everything below the story ---------------- */
-initUI({ scrollToTarget, reduceMotion, gsap, ScrollTrigger, lenis });
+initUI({ scrollToTarget, reduceMotion, gsap, ScrollTrigger });
 
 /* in-page anchor links go through Lenis */
 document.addEventListener("click", (e) => {
