@@ -70,6 +70,8 @@
     <p class="loader__label">Loading Elfin Group <span id="loaderPct">0%</span></p>
   </div>
 
+  <div class="scroll-progress" aria-hidden="true"><span id="scrollProgress"></span></div>
+
   <!-- Navigation -->
   <header class="nav" id="nav">
     <a class="nav__brand" href="#top" aria-label="Elfin Group, back to top">
@@ -107,11 +109,12 @@
       <div class="story__stage">
         <canvas class="story__canvas" id="storyCanvas" aria-hidden="true"></canvas>
         <div class="story__shade" aria-hidden="true"></div>
-        <div class="story__flash" id="storyFlash" aria-hidden="true"></div>
+        <div class="story__haze" id="storyHaze" aria-hidden="true"></div>
+        <div class="story__dim" aria-hidden="true"></div>
         <div class="story__labels" id="storyLabels" aria-hidden="true"></div>
 
         <div class="story__chapters">
-          <article class="chapter is-active" data-chapter="0">
+          <article class="chapter" data-chapter="0">
             <p class="eyebrow eyebrow--light"><span class="eyebrow__line"></span>Since 2008</p>
             <h1 class="chapter__title"><span>Elfin</span> <em>Group</em></h1>
             <p class="chapter__text">Builders, developers and promoters, shaping real estate in Hubballi for over eighteen years.</p>
@@ -172,7 +175,7 @@
     </section>
 
     <div class="marquee" aria-hidden="true">
-      <div class="marquee__track">
+      <div class="marquee__track" data-velocity-marquee="1">
         <span>Builders</span><i>✦</i><span>Developers</span><i>✦</i><span>Promoters</span><i>✦</i><span>Since 2008</span><i>✦</i><span>Hubballi</span><i>✦</i>
         <span>Builders</span><i>✦</i><span>Developers</span><i>✦</i><span>Promoters</span><i>✦</i><span>Since 2008</span><i>✦</i><span>Hubballi</span><i>✦</i>
       </div>
@@ -201,10 +204,10 @@
             </div>
           </div>
         </div>
-        <figure class="about__media" data-reveal data-tilt>
+        <figure class="about__media" data-reveal="clip" data-tilt>
           <picture>
             <source srcset="/images/nebula-structure.webp" type="image/webp" />
-            <img src="/images/nebula-structure.jpg" alt="Elfin Nebula tower under construction at Gopankoppa, Hubballi" width="360" height="640" loading="lazy" />
+            <img src="/images/nebula-structure.jpg" alt="Elfin Nebula tower under construction at Gopankoppa, Hubballi" width="1080" height="1530" loading="lazy" />
           </picture>
           <figcaption><strong>2008</strong><span>Building Hubballi since</span></figcaption>
         </figure>
@@ -240,10 +243,10 @@
 
         <div class="project-grid" id="projectGrid">
           <article class="project project--feature" data-tags="apartments ongoing" data-reveal>
-            <div class="project__media">
+            <div class="project__media" data-reveal="clip">
               <picture>
                 <source srcset="/images/nebula-structure.webp" type="image/webp" />
-                <img src="/images/nebula-structure.jpg" alt="Elfin Nebula tower structure at Siddheshwara, Gopankoppa" width="360" height="640" loading="lazy" />
+                <img src="/images/nebula-structure.jpg" alt="Elfin Nebula tower structure at Siddheshwara, Gopankoppa" width="1080" height="1530" loading="lazy" />
               </picture>
               <span class="badge badge--live">Ongoing</span>
             </div>
@@ -385,9 +388,12 @@
     <section class="section plots" id="plots">
       <div class="wrap plots__grid">
         <figure class="plan" data-reveal>
-          <svg class="plan__svg" id="planSvg" viewBox="0 0 640 400" role="img" aria-labelledby="planTitle">
-            <title id="planTitle">Sample plotted layout plan with numbered plots</title>
-          </svg>
+          <div class="plan__scroller">
+            <svg class="plan__svg" id="planSvg" viewBox="0 0 640 400" role="img" aria-labelledby="planTitle">
+              <title id="planTitle">Sample plotted layout plan with numbered plots</title>
+            </svg>
+          </div>
+          <p class="plan__hint" aria-hidden="true">Swipe to explore the plan ↔</p>
           <div class="plan__tip" id="planTip" hidden></div>
           <figcaption><span>Sample layout plan</span><span>Not to scale</span></figcaption>
         </figure>
@@ -417,20 +423,20 @@
           <p class="lead" data-reveal>A look at the towers as they rise at Siddheshwara, Gopankoppa. Daily site checks keep every stage to our standard.</p>
         </div>
         <div class="gallery">
-          <figure class="shot shot--tall" data-reveal>
-            <picture><source srcset="/images/nebula-site-oct-2026.webp" type="image/webp" /><img src="/images/nebula-site-oct-2026.jpg" alt="Elfin Nebula construction site, October 2026" width="360" height="640" loading="lazy" /></picture>
+          <figure class="shot shot--tall" data-reveal="clip">
+            <picture><source srcset="/images/nebula-site-oct-2026.webp" type="image/webp" /><img src="/images/nebula-site-oct-2026.jpg" alt="Elfin Nebula construction site, October 2026" width="1080" height="1674" loading="lazy" /></picture>
             <figcaption><time datetime="2026-10">Oct 2026</time>The making of Elfin Nebula</figcaption>
           </figure>
-          <figure class="shot" data-reveal>
-            <picture><source srcset="/images/emerald-column-casting.webp" type="image/webp" /><img src="/images/emerald-column-casting.jpg" alt="Concrete column casting at Emerald Tower, September 2026" width="360" height="640" loading="lazy" /></picture>
+          <figure class="shot" data-reveal="clip">
+            <picture><source srcset="/images/emerald-column-casting.webp" type="image/webp" /><img src="/images/emerald-column-casting.jpg" alt="Concrete column casting at Emerald Tower, September 2026" width="1080" height="1680" loading="lazy" /></picture>
             <figcaption><time datetime="2026-09">Sep 2026</time>Emerald Tower column casting</figcaption>
           </figure>
-          <figure class="shot" data-reveal>
-            <picture><source srcset="/images/nebula-blockwork-aug-2026.webp" type="image/webp" /><img src="/images/nebula-blockwork-aug-2026.jpg" alt="Blockwork and plastering at Elfin Nebula, August 2026" width="360" height="640" loading="lazy" /></picture>
-            <figcaption><time datetime="2026-08">Aug 2026</time>Blockwork, plastering &amp; electricals</figcaption>
+          <figure class="shot" data-reveal="clip">
+            <picture><source srcset="/images/emerald-site-aug-2026.webp" type="image/webp" /><img src="/images/emerald-site-aug-2026.jpg" alt="Emerald Tower rising at the Elfin Nebula site, August 2026" width="1080" height="1518" loading="lazy" /></picture>
+            <figcaption><time datetime="2026-08">Aug 2026</time>Emerald Tower bookings open</figcaption>
           </figure>
-          <figure class="shot" data-reveal>
-            <picture><source srcset="/images/nebula-custom-interiors.webp" type="image/webp" /><img src="/images/nebula-custom-interiors.jpg" alt="Custom interior of an Elfin home" width="360" height="640" loading="lazy" /></picture>
+          <figure class="shot" data-reveal="clip">
+            <picture><source srcset="/images/nebula-custom-interiors.webp" type="image/webp" /><img src="/images/nebula-custom-interiors.jpg" alt="Custom interior of an Elfin home" width="1080" height="1920" loading="lazy" /></picture>
             <figcaption><time datetime="2025-10">Oct 2025</time>Design your own interiors</figcaption>
           </figure>
         </div>
@@ -500,6 +506,25 @@
             <p>“From booking to move-in, the process was seamless. Thank you, Elfin Infra Builders!”</p>
             <footer>Rizwan · Elfin Castle</footer>
           </blockquote>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ BOOKING CTA ============ -->
+    <section class="cta-band" id="book" aria-labelledby="ctaTitle">
+      <div class="cta-band__ticker" aria-hidden="true">
+        <div class="cta-band__track" data-velocity-marquee="-1">
+          <span>Elfin Nebula</span><i>✦</i><span>Emerald Tower</span><i>✦</i><span>Gopankoppa</span><i>✦</i>
+          <span>Elfin Nebula</span><i>✦</i><span>Emerald Tower</span><i>✦</i><span>Gopankoppa</span><i>✦</i>
+        </div>
+      </div>
+      <div class="wrap cta-band__inner">
+        <p class="eyebrow eyebrow--light" data-reveal><span class="eyebrow__line"></span><span class="pulse-dot"></span>Bookings open</p>
+        <h2 class="h2 cta-band__title" id="ctaTitle" data-split>Your home at Elfin Nebula is <em>rising.</em></h2>
+        <p class="lead" data-reveal>Bookings opened in August 2026 for Emerald Tower, the second tower at Elfin Nebula. Visit the site at Gopankoppa, walk the floors and choose your home early.</p>
+        <div class="cta-band__actions" data-reveal>
+          <a class="btn btn--gold btn--lg" href="#contact" data-enquire="A site visit" data-magnetic>Book a site visit <span class="btn__arrow" aria-hidden="true">→</span></a>
+          <a class="btn btn--ghost btn--lg" href="tel:+918147284999">Call 81472 84999</a>
         </div>
       </div>
     </section>
@@ -585,6 +610,22 @@
   <a class="wa-float" id="waFloat" href="https://wa.me/918147284999" target="_blank" rel="noopener" aria-label="Chat with Elfin Group on WhatsApp">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7a11.7 11.7 0 0 1-4.6-4.1c-.3-.5-1.1-1.6-1.1-3s.7-2.1 1-2.4c.3-.3.6-.4.8-.4h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 1c.3.1.5.2.5.3.1.1.1.6-.1 1.2z"/></svg>
   </a>
+
+  <!-- Phone action bar -->
+  <nav class="action-bar" id="actionBar" aria-label="Quick contact">
+    <a href="tel:+918147284999" class="action-bar__item">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.2 15.2 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg>
+      <span>Call</span>
+    </a>
+    <a href="https://wa.me/918147284999" target="_blank" rel="noopener" class="action-bar__item" id="actionWa">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7a11.7 11.7 0 0 1-4.6-4.1c-.3-.5-1.1-1.6-1.1-3s.7-2.1 1-2.4c.3-.3.6-.4.8-.4h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.4.6-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 1c.3.1.5.2.5.3.1.1.1.6-.1 1.2z"/></svg>
+      <span>WhatsApp</span>
+    </a>
+    <a href="#contact" class="action-bar__item action-bar__item--gold" data-enquire="A site visit">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2zm-2 8h14v10H5zm2 2v2h2v-2zm4 0v2h2v-2zm4 0v2h2v-2z"/></svg>
+      <span>Book a visit</span>
+    </a>
+  </nav>
 
   <!-- Card illustrations -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">

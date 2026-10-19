@@ -13,7 +13,7 @@ function node(tag, className = "", text = "") {
   return el;
 }
 
-export function initUI({ scrollToTarget, reduceMotion, gsap, ScrollTrigger }) {
+export function initUI({ scrollToTarget, reduceMotion, gsap, ScrollTrigger, lenis }) {
   $("#year").textContent = String(new Date().getFullYear());
   initNav(ScrollTrigger);
   initSplit();
@@ -23,10 +23,15 @@ export function initUI({ scrollToTarget, reduceMotion, gsap, ScrollTrigger }) {
   initMap();
   initPlan();
   initForm(scrollToTarget);
+  if (!reduceMotion) {
+    initMarquees(gsap, lenis);
+    initStoryExit(gsap);
+    initExpandingSections(gsap);
+    initParallax(gsap);
+  }
   if (finePointer && !reduceMotion) {
     initMagnetic(gsap);
     initTilt(gsap);
-    initParallax(gsap);
   }
 }
 
@@ -37,32 +42,60 @@ function initNav(ScrollTrigger) {
   const wa = $("#waFloat");
   const toggle = $("#navToggle");
   const menu = $("#mobileMenu");
+  const bar = $("#actionBar");
   let lastY = 0;
+  let contactInView = false;
+  let menuOpen = false;
+  const syncBar = (pastStory) => bar.classList.toggle("is-visible", pastStory && !contactInView && !menuOpen);
+  let pastStoryNow = false;
+  new IntersectionObserver(([en]) => {
+    contactInView = en.isIntersecting;
+    syncBar(pastStoryNow);
+  }, { rootMargin: "0px 0px -35% 0px" }).observe($("#contact"));
 
-  ScrollTrigger.create({
-    start: 0,
-    end: "max",
-    onUpdate: (self) => {
-      const y = self.scroll();
-      const pastStory = y > story.offsetTop + story.offsetHeight - nav.offsetHeight;
-      nav.classList.toggle("is-solid", pastStory);
-      nav.classList.toggle("is-hidden", pastStory && y > lastY + 4 && menu.hidden);
-      if (y < lastY - 4) nav.classList.remove("is-hidden");
-      wa.classList.toggle("is-visible", pastStory);
-      lastY = y;
-    },
-  });
+  // Driven by plain scroll events as well as ScrollTrigger, and once on load, so the nav,
+  // WhatsApp button and phone action bar are right even after a jump (anchor, reload mid-page).
+  const onScroll = () => {
+    const y = window.scrollY;
+    const pastStory = y > story.offsetTop + story.offsetHeight - nav.offsetHeight;
+    nav.classList.toggle("is-solid", pastStory);
+    nav.classList.toggle("is-hidden", pastStory && y > lastY + 4 && !menuOpen);
+    if (y < lastY - 4) nav.classList.remove("is-hidden");
+    wa.classList.toggle("is-visible", pastStory);
+    pastStoryNow = pastStory;
+    syncBar(pastStory);
+    lastY = y;
+  };
+  addEventListener("scroll", onScroll, { passive: true });
+  ScrollTrigger.create({ start: 0, end: "max", onUpdate: onScroll });
+  addEventListener("load", onScroll);
+  onScroll();
 
+  [...menu.querySelectorAll("nav a"), menu.querySelector(".btn"), menu.querySelector(".mobile-menu__phone")].forEach((el, i) =>
+    el.style.setProperty("--i", i),
+  );
+  // the menu irises open from the toggle button
   const setMenu = (open) => {
-    menu.hidden = !open;
+    if (open === menuOpen) return;
+    menuOpen = open;
     toggle.setAttribute("aria-expanded", String(open));
     toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
     nav.classList.toggle("is-menu", open);
+    nav.classList.remove("is-hidden");
     document.body.style.overflow = open ? "hidden" : "";
+    syncBar(pastStoryNow);
+    if (open) {
+      menu.hidden = false;
+      requestAnimationFrame(() => requestAnimationFrame(() => menu.classList.add("is-open")));
+    } else {
+      menu.classList.remove("is-open");
+      setTimeout(() => !menuOpen && (menu.hidden = true), 800);
+    }
   };
-  toggle.addEventListener("click", () => setMenu(menu.hidden));
+  toggle.addEventListener("click", () => setMenu(!menuOpen));
   document.addEventListener("elfin:navigate", () => setMenu(false));
-  document.addEventListener("keydown", (e) => e.key === "Escape" && !menu.hidden && setMenu(false));
+  document.addEventListener("keydown", (e) => e.key === "Escape" && menuOpen && setMenu(false));
+  matchMedia("(min-width: 1024px)").addEventListener("change", (e) => e.matches && setMenu(false));
 
   // highlight the section in view
   const links = $$(".nav__links a");
@@ -125,14 +158,39 @@ function initReveal() {
     (entries) => {
       for (const en of entries) {
         if (en.isIntersecting) {
-          en.target.classList.add("is-in");
-          io.unobserve(en.target);
+          const el = en.target;
+          el.classList.add("is-in");
+          io.unobserve(el);
+          setTimeout(() => el.style.setProperty("--d", "0s"), 2400);
         }
       }
     },
     { rootMargin: "0px 0px -8% 0px", threshold: 0.08 },
   );
-  els.forEach((el) => io.observe(el));
+  els.filter((el) => el.dataset.reveal !== "clip").forEach((el) => io.observe(el));
+
+  // A fully closed clip-path has no visible area, so IntersectionObserver never reports the
+  // element itself. Watch its container instead and open every mask inside it.
+  const clipGroups = new Map();
+  for (const el of els.filter((e) => e.dataset.reveal === "clip")) {
+    const host = el.parentElement;
+    if (!clipGroups.has(host)) clipGroups.set(host, []);
+    clipGroups.get(host).push(el);
+  }
+  const clipIo = new IntersectionObserver(
+    (entries) => {
+      for (const en of entries) {
+        if (!en.isIntersecting) continue;
+        clipIo.unobserve(en.target);
+        for (const el of clipGroups.get(en.target)) {
+          el.classList.add("is-in");
+          setTimeout(() => el.style.setProperty("--d", "0s"), 2600);
+        }
+      }
+    },
+    { rootMargin: "0px 0px -12% 0px", threshold: 0 },
+  );
+  clipGroups.forEach((_els, host) => clipIo.observe(host));
 }
 
 /* ---------------- stats ---------------- */
@@ -205,7 +263,12 @@ function initMap() {
       node("p", "", loc.text),
       actions,
     );
-    panel.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], { duration: 450, easing: "cubic-bezier(.22,1,.36,1)" });
+    [...panel.children].forEach((child, i) =>
+      child.animate(
+        [{ opacity: 0, transform: "translateY(18px)", filter: "blur(6px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }],
+        { duration: 800, delay: i * 70, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" },
+      ),
+    );
   };
 
   const select = (id) => {
@@ -224,6 +287,7 @@ function initMap() {
       pin.dataset.id = loc.id;
       pin.style.left = `${loc.x}%`;
       pin.style.top = `${loc.y}%`;
+      pin.style.setProperty("--i", pins.children.length);
       pin.setAttribute("aria-label", `${loc.name}, ${loc.kicker}`);
       pin.append(node("span", "map-pin__dot"), node("span", "map-pin__name", loc.short));
       pin.addEventListener("click", () => select(loc.id));
@@ -264,7 +328,11 @@ function initPlan() {
   el("rect", { class: "gate", x: 0, y: 184, width: 10, height: 32, rx: 2 });
 
   // avenue trees
-  for (let x = 50; x < 600; x += 26) if (x < 296 || x > 344) el("circle", { class: "tree", cx: x, cy: 99, r: 4 }), el("circle", { class: "tree", cx: x, cy: 301, r: 4 });
+  let t = 0;
+  for (let x = 50; x < 600; x += 26) {
+    if (x > 296 && x < 344) continue;
+    for (const cy of [99, 301]) el("circle", { class: "tree", cx: x, cy, r: 4, style: `--i:${t++}` });
+  }
 
   const cols = [40, 77, 114, 151, 188, 225, 262, 341, 378, 415, 452, 489, 526, 563];
   const rows = [104, 147, 213, 256];
@@ -275,6 +343,7 @@ function initPlan() {
       n++;
       const g = el("g", {});
       const r = el("rect", { class: "plot", x, y, width: 34, height: 40, rx: 2, tabindex: 0, role: "button", "aria-label": `Plot ${n}` }, g);
+      r.style.setProperty("--i", (x - 40) / 37 + rows.indexOf(y) * 3);
       r.dataset.n = n;
       el("text", { class: "plot-no", x: x + 17, y: y + 24, "text-anchor": "middle" }, g).textContent = n;
       plots.push(r);
@@ -311,6 +380,16 @@ function initPlan() {
   });
   io.observe(svg);
   window.addEventListener("resize", () => picked && !tip.hidden && showTip(picked, tip.textContent));
+  const scroller = $(".plan__scroller");
+  const hint = $(".plan__hint");
+  scroller.addEventListener(
+    "scroll",
+    () => {
+      if (picked && !tip.hidden) showTip(picked, tip.textContent);
+      hint.style.opacity = "0";
+    },
+    { passive: true },
+  );
 }
 
 /* ---------------- contact → WhatsApp ---------------- */
@@ -354,7 +433,9 @@ function initForm(scrollToTarget) {
     window.open(url, "_blank", "noopener");
   });
 
-  $("#waFloat").href = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent("Hi Elfin Group, I'd like to know more about your projects.")}`;
+  const hello = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent("Hi Elfin Group, I'd like to know more about your projects.")}`;
+  $("#waFloat").href = hello;
+  $("#actionWa").href = hello;
   void scrollToTarget;
 }
 
@@ -393,7 +474,52 @@ function initTilt(gsap) {
 }
 
 function initParallax(gsap) {
-  for (const img of $$(".about__media img, .shot img")) {
-    gsap.fromTo(img, { yPercent: -5 }, { yPercent: 5, ease: "none", scrollTrigger: { trigger: img.closest("figure"), scrub: true } });
+  for (const img of $$(".about__media img, .shot img, .project__media img")) {
+    gsap.fromTo(
+      img,
+      { yPercent: -6, scale: 1.14 },
+      { yPercent: 6, scale: 1.14, ease: "none", scrollTrigger: { trigger: img.closest("figure, .project__media"), scrub: 0.6 } },
+    );
+  }
+}
+
+/* ---------------- scroll-velocity marquees ---------------- */
+function initMarquees(gsap, lenis) {
+  const tracks = $$("[data-velocity-marquee]").map((el) => ({ el, dir: Number(el.dataset.velocityMarquee) || 1, x: 0, skew: 0, w: 0 }));
+  const measure = () => tracks.forEach((t) => (t.w = t.el.scrollWidth / 2));
+  measure();
+  addEventListener("resize", measure);
+  let velocity = 0;
+  lenis?.on("scroll", (l) => (velocity = l.velocity));
+  gsap.ticker.add((_time, deltaMs) => {
+    const dt = Math.min(deltaMs, 50) / 1000;
+    const boost = Math.max(-40, Math.min(40, velocity));
+    for (const t of tracks) {
+      t.x -= t.dir * (60 + Math.abs(boost) * 26) * dt * Math.sign(boost || 1);
+      if (t.w) t.x = ((t.x % t.w) - t.w) % t.w;
+      t.skew += (boost * -0.35 - t.skew) * Math.min(1, dt * 6);
+      t.el.style.transform = `translate3d(${t.x.toFixed(2)}px, 0, 0) skewX(${t.skew.toFixed(2)}deg)`;
+    }
+    velocity *= 0.92;
+  });
+}
+
+/* ---------------- story recedes into a card as the page arrives ---------------- */
+function initStoryExit(gsap) {
+  const stage = $(".story__stage");
+  gsap.timeline({ scrollTrigger: { trigger: "#story", start: "bottom bottom", end: "bottom top", scrub: 0.8 } })
+    .to(stage, { scale: 0.86, borderRadius: 36, ease: "none" }, 0)
+    .to(".story__dim", { opacity: 0.55, ease: "none" }, 0);
+}
+
+/* ---------------- dark sections open from a card to full bleed ---------------- */
+function initExpandingSections(gsap) {
+  const inset = innerWidth < 760 ? 3 : 5;
+  for (const el of $$(".progress, .cta-band")) {
+    gsap.fromTo(
+      el,
+      { clipPath: `inset(0% ${inset}% 0% ${inset}% round 40px)` },
+      { clipPath: "inset(0% 0% 0% 0% round 0px)", ease: "none", scrollTrigger: { trigger: el, start: "top bottom", end: "top 25%", scrub: 0.8 } },
+    );
   }
 }

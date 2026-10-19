@@ -16,8 +16,14 @@ export function chapterAt(p) {
 function detectQuality() {
   const small = matchMedia("(max-width: 760px)").matches;
   const weak = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4;
-  const low = small || weak;
-  return { low, shadows: !low, dpr: Math.min(window.devicePixelRatio || 1, low ? 1.5 : 1.75) };
+  const saveData = !!navigator.connection?.saveData;
+  const low = small || weak || saveData;
+  return {
+    low,
+    shadows: !low,
+    dpr: Math.min(window.devicePixelRatio || 1, low ? 1.5 : 1.75),
+    minDpr: weak || saveData ? 0.75 : 1,
+  };
 }
 
 export function supportsWebGL() {
@@ -33,7 +39,7 @@ export function supportsWebGL() {
  * Builds the two 3D worlds and drives them from scroll progress.
  * Resolves once every texture has loaded and shaders are compiled.
  */
-export async function createStory({ canvas, stage, labelLayer, flash, onLoadProgress }) {
+export async function createStory({ canvas, stage, labelLayer, haze, onLoadProgress, onFrame }) {
   const quality = detectQuality();
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !quality.low, powerPreference: "high-performance" });
   renderer.setPixelRatio(quality.dpr);
@@ -42,6 +48,9 @@ export async function createStory({ canvas, stage, labelLayer, flash, onLoadProg
   renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = quality.shadows;
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  // The world is static apart from the rising towers, so shadows are redrawn only when they change.
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
 
   const manager = new THREE.LoadingManager();
   const loaded = new Promise((resolve, reject) => {
@@ -98,6 +107,7 @@ export async function createStory({ canvas, stage, labelLayer, flash, onLoadProg
   let target = 0;
   let p = 0;
   let visible = true;
+  let resync = true;
   const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
   const timer = new THREE.Timer();
   timer.connect(document);
@@ -112,14 +122,47 @@ export async function createStory({ canvas, stage, labelLayer, flash, onLoadProg
     { passive: true },
   );
 
-  new IntersectionObserver(([entry]) => (visible = entry.isIntersecting), { rootMargin: "100px" }).observe(stage);
+  new IntersectionObserver(
+    ([entry]) => {
+      visible = entry.isIntersecting;
+      if (visible) resync = true;
+    },
+    { rootMargin: "100px" },
+  ).observe(stage);
 
-  function placeLabels(world, camera, chapter) {
+  /* Adaptive resolution: trade pixels for a steady frame rate. */
+  const maxDpr = quality.dpr;
+  let dpr = maxDpr;
+  let frames = 0;
+  let frameTime = 0;
+  function adapt(rawDt) {
+    // Stalls (tab switch, background throttling, a notification) say nothing about GPU load.
+    if (rawDt > 0.2 || document.hidden) return;
+    const dt = rawDt;
+    frames++;
+    frameTime += dt;
+    if (frames < 90) return;
+    const avg = frameTime / frames;
+    frames = 0;
+    frameTime = 0;
+    let next = dpr;
+    if (avg > 1 / 45 && dpr > quality.minDpr) next = Math.max(quality.minDpr, dpr - 0.25);
+    else if (avg < 1 / 58 && dpr < maxDpr) next = Math.min(maxDpr, dpr + 0.125);
+    if (next !== dpr) {
+      dpr = next;
+      renderer.setPixelRatio(dpr);
+      renderer.setSize(width, height, false);
+    }
+  }
+
+  function placeLabels(world, camera, chapter, hidden) {
     for (const l of labels) {
-      const show = l.world === world && l.chapter === chapter && (!l.visible || l.visible());
+      const show = !hidden && l.world === world && l.chapter === chapter && (!l.visible || l.visible());
       if (show) {
         v.copy(l.get()).project(camera);
-        const onScreen = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05;
+        // NDC y runs -1 (bottom) to 1 (top). In portrait the copy owns the top ~45%, so labels stay below it.
+        const maxY = width / height < 0.9 ? 0.1 : 1.05;
+        const onScreen = v.z < 1 && Math.abs(v.x) < 0.95 && v.y < maxY && v.y > -1.05;
         if (onScreen) {
           const x = (v.x * 0.5 + 0.5) * width;
           const y = (-v.y * 0.5 + 0.5) * height;
@@ -132,27 +175,42 @@ export async function createStory({ canvas, stage, labelLayer, flash, onLoadProg
     }
   }
 
+  let lastHaze = -1;
   renderer.setAnimationLoop(() => {
     timer.update();
-    const dt = Math.min(timer.getDelta(), 0.05);
+    const rawDt = timer.getDelta();
+    const dt = Math.min(rawDt, 0.05);
     if (!visible) return;
     const time = timer.getElapsed();
-    p = Math.abs(target - p) > 0.25 ? target : damp(p, target, 5.5, dt);
-    pointer.x = damp(pointer.x, pointer.tx, 2.5, dt);
-    pointer.y = damp(pointer.y, pointer.ty, 2.5, dt);
+    // Coming back into view (or first frame): jump straight to where the page is.
+    if (resync) {
+      p = target;
+      resync = false;
+    } else {
+      p = damp(p, target, 4.2, dt);
+    }
+    pointer.x = damp(pointer.x, pointer.tx, 2.2, dt);
+    pointer.y = damp(pointer.y, pointer.ty, 2.2, dt);
 
     const chapter = chapterAt(p);
-    flash.style.opacity = bump(p, 0.345, SWITCH, 0.455).toFixed(3);
+    const h = bump(p, 0.335, SWITCH, 0.48);
+    if (Math.abs(h - lastHaze) > 0.001) {
+      haze.style.opacity = h.toFixed(3);
+      lastHaze = h;
+    }
 
     if (p < SWITCH) {
       earth.update({ p, dt, time, aspect: width / height, pointer });
       renderer.render(earth.scene, earth.camera);
-      placeLabels(0, earth.camera, chapter);
+      placeLabels(0, earth.camera, chapter, h > 0.3);
     } else {
       ground.update({ p, dt, time, pointer });
+      if (ground.shadowsDirty) renderer.shadowMap.needsUpdate = true;
       renderer.render(ground.scene, ground.camera);
-      placeLabels(1, ground.camera, chapter);
+      placeLabels(1, ground.camera, chapter, h > 0.3 || p < 0.45);
     }
+    onFrame?.(p, time);
+    adapt(rawDt);
   });
 
   return {

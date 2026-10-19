@@ -212,7 +212,9 @@ export function createEarthWorld({ loader, quality }) {
     tilt.rotation.x = THREE.MathUtils.lerp(0.22, targetTilt, dive);
     tilt.rotation.z = THREE.MathUtils.lerp(-0.32, 0, dive);
     clouds.rotation.y = time * 0.006;
-    clouds.material.opacity = 0.75 * (1 - dive * 0.8);
+    // Final plunge: clouds thicken as we fall towards Hubballi, then the haze takes over.
+    const veil = smooth(clamp((p - 0.325) / 0.075));
+    clouds.material.opacity = THREE.MathUtils.lerp(0.75 * (1 - dive * 0.8), 1, veil);
 
     // Globe sits right of the headline on desktop, low and centred on portrait.
     const restX = portrait ? 0 : Math.min(1.15, 0.62 * aspect);
@@ -221,7 +223,8 @@ export function createEarthWorld({ loader, quality }) {
     atmo.position.set(0, 0, 0);
 
     const restZ = portrait ? 6.2 : 4.9;
-    camera.position.z = THREE.MathUtils.lerp(restZ, portrait ? 2.1 : 1.78, smooth(dive));
+    const near = portrait ? 2.1 : 1.78;
+    camera.position.z = THREE.MathUtils.lerp(THREE.MathUtils.lerp(restZ, near, smooth(dive)), 1.06, veil);
     camera.position.x = damp(camera.position.x, pointer.x * 0.08 * (1 - dive), 3, dt);
     camera.position.y = damp(camera.position.y, -pointer.y * 0.06 * (1 - dive), 3, dt);
     camera.lookAt(tilt.position.x * (1 - dive) * 0.15, tilt.position.y * 0.15, 0);

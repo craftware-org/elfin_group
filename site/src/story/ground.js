@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { clamp, easeInOut, smooth } from "./math.js";
+import { clamp, smooth } from "./math.js";
 import { GOLD, box, makeFields, makeLayout, makeSky, makeTower, makeVillas, overlayMat, pick, rand } from "./parts.js";
 
 /* ------------------------------------------------------------------ world */
@@ -199,33 +199,32 @@ export function createGroundWorld({ quality }) {
   cars.castShadow = quality.shadows;
   scene.add(cars);
 
-  /* ---------- camera path: [p, position, target] ---------- */
+  /* ---------- camera path ----------
+     One Catmull-Rom spline through every shot, so the camera never stops between
+     keyframes. Scroll progress maps piecewise-linearly onto the spline; the story
+     loop already damps progress, which keeps speed changes soft. */
   const keys = [
-    [0.4, [170, 140, 230], [0, 8, 0]],
-    [0.47, [58, 26, 66], [0, 15, 0]],
-    [0.535, [4, 21, 80], [1, 16, -4]],
-    [0.6, [-56, 26, 50], [0, 15, -2]],
-    [0.665, [40, 52, 92], [108, 0, -6]],
-    [0.73, [155, 38, 66], [118, 0, -8]],
-    [0.79, [182, 46, 6], [116, 0, -8]],
-    [0.87, [150, 200, 250], [40, 0, -60]],
-    [1.0, [30, 340, 330], [40, 0, -90]],
-  ].map(([p, a, b]) => ({ p, pos: new THREE.Vector3(...a), tgt: new THREE.Vector3(...b) }));
-
+    [0.4, [210, 230, 300], [0, 4, 0]],
+    [0.47, [60, 30, 70], [0, 14, 0]],
+    [0.535, [6, 22, 82], [1, 16, -4]],
+    [0.6, [-58, 27, 48], [0, 15, -2]],
+    [0.665, [36, 54, 96], [104, 0, -6]],
+    [0.73, [152, 40, 70], [118, 0, -8]],
+    [0.79, [186, 50, 10], [116, 0, -8]],
+    [0.87, [158, 205, 255], [44, 0, -60]],
+    [1.0, [30, 345, 335], [40, 0, -90]],
+  ];
+  const keyP = keys.map((k) => k[0]);
+  const posCurve = new THREE.CatmullRomCurve3(keys.map((k) => new THREE.Vector3(...k[1])), false, "centripetal");
+  const tgtCurve = new THREE.CatmullRomCurve3(keys.map((k) => new THREE.Vector3(...k[2])), false, "centripetal");
   const camPos = new THREE.Vector3();
   const camTgt = new THREE.Vector3();
   function pathAt(p) {
-    if (p <= keys[0].p) return [keys[0].pos, keys[0].tgt];
-    for (let i = 0; i < keys.length - 1; i++) {
-      const a = keys[i];
-      const b = keys[i + 1];
-      if (p <= b.p) {
-        const t = easeInOut((p - a.p) / (b.p - a.p));
-        return [camPos.lerpVectors(a.pos, b.pos, t), camTgt.lerpVectors(a.tgt, b.tgt, t)];
-      }
-    }
-    const last = keys[keys.length - 1];
-    return [last.pos, last.tgt];
+    let i = 0;
+    while (i < keyP.length - 2 && p > keyP[i + 1]) i++;
+    const t = clamp((p - keyP[i]) / (keyP[i + 1] - keyP[i]));
+    const u = (i + t) / (keyP.length - 1);
+    return [posCurve.getPoint(u, camPos), tgtCurve.getPoint(u, camTgt)];
   }
 
   const lookTarget = new THREE.Vector3();
@@ -247,15 +246,21 @@ export function createGroundWorld({ quality }) {
 
   function update({ p, dt, time, pointer }) {
     const [cp, ct] = pathAt(clamp(p, 0.4, 1));
-    const sway = Math.sin(time * 0.25) * 1.2;
-    camera.position.set(cp.x + pointer.x * 4 + sway, cp.y - pointer.y * 2.5, cp.z);
+    const swayX = Math.sin(time * 0.21) * 1.4;
+    const swayY = Math.sin(time * 0.17 + 1.3) * 0.6;
+    camera.position.set(cp.x + pointer.x * 4 + swayX, cp.y - pointer.y * 2.5 + swayY, cp.z);
     lookTarget.copy(ct);
     camera.lookAt(lookTarget);
 
+    // Descending through haze: thick fog at the hand-off clears as we land
+    scene.fog.density = THREE.MathUtils.lerp(0.011, 0.0017, smooth(clamp((p - 0.4) / 0.08)));
+
     // Towers rise floor-by-floor as the chapter opens
-    const rise = smooth(clamp((p - 0.4) / 0.065));
-    towerA.scale.y = Math.max(0.02, rise);
-    towerB.scale.y = Math.max(0.02, smooth(clamp((p - 0.415) / 0.07)));
+    const a = Math.max(0.02, smooth(clamp((p - 0.42) / 0.06)));
+    const b = Math.max(0.02, smooth(clamp((p - 0.435) / 0.065)));
+    world.shadowsDirty = a !== towerA.scale.y || b !== towerB.scale.y;
+    towerA.scale.y = a;
+    towerB.scale.y = b;
     towerA.localToWorld(anchors.nebula.copy(towerA.userData.top));
     towerB.localToWorld(anchors.emerald.copy(towerB.userData.top));
 
@@ -276,5 +281,6 @@ export function createGroundWorld({ quality }) {
     { key: "a-casa", text: "Elfin Casa", chapter: 4, get: () => anchors.casa },
   ];
 
-  return { scene, camera, update, labels };
+  const world = { scene, camera, update, labels, shadowsDirty: true };
+  return world;
 }
