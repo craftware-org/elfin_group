@@ -2,7 +2,8 @@
 #   push to main         -> production  (https://elfingroup.vercel.app)
 #   pull request         -> preview URL (shown in the run summary)
 #   manual run           -> production
-# Requires one repository secret: VERCEL_TOKEN (vercel.com/account/tokens).
+# Needs one repository secret, VERCEL_TOKEN (vercel.com/account/tokens). Until it exists the
+# deploy job is skipped (not failed); the site is then deployed manually with the Vercel CLI.
 name: Deploy to Vercel
 
 on:
@@ -30,9 +31,28 @@ env:
   VERCEL_CLI_VERSION: 52.2.1
 
 jobs:
+  # Gate: is the token configured? Kept separate so a missing token never opens a
+  # (failed) "production" deployment; the deploy job is simply skipped.
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      ready: ${{ steps.token.outputs.ready }}
+    steps:
+      - id: token
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -n "$VERCEL_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::VERCEL_TOKEN is not set, so automatic deploy is skipped. Add it under Settings > Secrets and variables > Actions to enable it."
+          fi
+
   deploy:
-    # Fork PRs never receive secrets, so skip them instead of failing.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: check
+    # Runs only with a token; fork PRs never receive secrets, so they are skipped too.
+    if: needs.check.outputs.ready == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment:
@@ -52,13 +72,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: site/package-lock.json
-
-      - name: Check VERCEL_TOKEN secret
-        run: |
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "::error::Add a VERCEL_TOKEN repository secret (Settings > Secrets and variables > Actions)."
-            exit 1
-          fi
 
       - name: Install Vercel CLI
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
