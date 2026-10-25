@@ -76,8 +76,26 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
 
+      # Fail with a readable reason (as an annotation) rather than a bare "exit code 1".
+      - name: Verify token
+        run: |
+          if ! who=$(vercel whoami --token="$VERCEL_TOKEN" 2>&1); then
+            echo "$who"
+            reason=$(printf '%s' "$who" | grep -iE 'error|invalid|expired|forbidden|denied|not' | head -n 2 | tr '\n' ' ')
+            echo "::error title=Vercel rejected VERCEL_TOKEN::${reason:-The token was not accepted.} Create a new token at vercel.com/account/tokens (scope: the team that owns the elfingroup project) and replace the secret, with no spaces or line breaks."
+            exit 1
+          fi
+          echo "::notice title=Vercel token OK::Authenticated as $(printf '%s' "$who" | tail -n 1)"
+
       - name: Pull project settings
-        run: vercel pull --yes --environment="$TARGET" --token="$VERCEL_TOKEN"
+        run: |
+          if ! out=$(vercel pull --yes --environment="$TARGET" --token="$VERCEL_TOKEN" 2>&1); then
+            echo "$out"
+            reason=$(printf '%s' "$out" | grep -iE 'error|not found|scope|team|forbidden|denied|access' | head -n 3 | tr '\n' ' ')
+            echo "::error title=vercel pull failed::${reason:-See the step log.} If this mentions scope or access, the token was created for a different team than the one owning the elfingroup project."
+            exit 1
+          fi
+          echo "$out"
 
       - name: Build
         run: |
