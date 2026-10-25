@@ -16,20 +16,11 @@ Node 18+ is required. The build is fully static, so `dist/` can be hosted on Ver
 
 ## Deploying
 
-Live (placeholder domain): **https://elfingroup.vercel.app**, served by the Vercel project `elfingroup`.
+Hosted on **CraftWare's Vercel account** (team `craftware`), project `elfin-group`, using Vercel's GitHub integration with **Root Directory `site`** and the **Vite** preset.
 
-Deploys run through GitHub Actions (`.github/workflows/deploy.yml`):
-
-| Event | Result |
-|---|---|
-| Push to `main` touching `site/**` | Production deploy to elfingroup.vercel.app |
-| Pull request touching `site/**` | Preview deploy. The URL appears in the run summary |
-| Actions → "Deploy to Vercel" → Run workflow | Production deploy on demand |
-
-It needs one repository secret, `VERCEL_TOKEN` (create it at vercel.com/account/tokens).
-Vercel's own GitHub integration isn't used, because the repo's owner (`craftware-org`) is a different GitHub account from the one linked to Vercel.
-
-For a manual deploy from this folder: `vercel deploy --prod`. The folder is already linked to `elfingroup` through `.vercel/`, which is git-ignored.
+- Live: **https://elfingroup.vercel.app** (also https://elfin-group.vercel.app)
+- Every push to `main` deploys to production automatically. Pull requests get a preview URL, which Vercel posts on the PR.
+- No tokens or GitHub secrets are needed. Manage domains, deployments and rollbacks at vercel.com/craftware/elfin-group.
 
 ## Configuration (`.env`)
 
