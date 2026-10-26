@@ -37,7 +37,7 @@
 html { -webkit-text-size-adjust: 100%; scroll-padding-top: var(--nav-h); }
 html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
-.lenis.lenis-stopped { overflow: hidden; }
+.lenis.lenis-stopped, html.is-scroll-locked { overflow: hidden; }
 
 body {
   margin: 0;

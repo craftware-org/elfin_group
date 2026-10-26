@@ -7,6 +7,7 @@ import Lenis from "lenis";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { initChapters } from "./chapters.js";
+import { createNativeScroll } from "./nativeScroll.js";
 import { initStoryIntro } from "./storyIntro.js";
 import { initUI } from "./ui.js";
 
@@ -26,21 +27,37 @@ ScrollTrigger.clearScrollMemory("manual");
 if (location.hash) history.replaceState(null, "", location.pathname + location.search);
 window.scrollTo(0, 0);
 
+// Mouse and trackpad: Lenis smooth scroll. Phones and tablets: the browser's own scrolling behind the same
+// small API (see nativeScroll.js), because Lenis' page-wide touch listeners make every swipe lag.
+const touchFirst = matchMedia("(hover: none) and (pointer: coarse)").matches;
 let lenis = null;
-if (!reduceMotion) {
+if (!reduceMotion && touchFirst) {
+  lenis = createNativeScroll();
+} else if (!reduceMotion) {
   lenis = new Lenis({ lerp: 0.075, smoothWheel: true, wheelMultiplier: 0.85, touchMultiplier: 1.3 });
   lenis.on("scroll", ScrollTrigger.update);
   gsap.ticker.add((t) => lenis.raf(t * 1000));
   gsap.ticker.lagSmoothing(0);
 }
+// An element's place on the page from layout (offsetTop), not getBoundingClientRect: cards that haven't
+// revealed yet, and the "More about Elfin Nebula" sections while they fold out, are still shifted by a
+// transform, which would make the scroll stop short or overshoot.
+const pageTop = (el) => {
+  let y = 0;
+  for (let e = el; e; e = e.offsetParent) y += e.offsetTop;
+  return y;
+};
 const scrollToTarget = (target, offset = 0) => {
   const el = typeof target === "string" ? $(target) : target;
   if (!el) return;
   // the page may have just grown (a folded section opened): measure it again before scrolling
   lenis?.resize();
-  if (lenis) lenis.scrollTo(el, { offset, duration: 1.8, easing: (t) => 1 - Math.pow(1 - t, 4) });
-  else window.scrollTo({ top: el.getBoundingClientRect().top + scrollY + offset, behavior: reduceMotion ? "auto" : "smooth" });
+  const top = Math.max(0, pageTop(el) + offset);
+  if (lenis) lenis.scrollTo(top, { duration: 1.8, easing: (t) => 1 - Math.pow(1 - t, 4) });
+  else window.scrollTo({ top, behavior: reduceMotion ? "auto" : "smooth" });
 };
+// sections carry their own top padding; anything else (a project card) stops just below the header bar
+const navClearance = (el) => (el.matches("section, .section, main") ? 0 : -($("#nav").offsetHeight + 12));
 
 /* ---------------- scroll progress line ---------------- */
 const progressLine = $("#scrollProgress");
@@ -208,7 +225,7 @@ document.addEventListener("click", (e) => {
   e.preventDefault();
   document.dispatchEvent(new CustomEvent("elfin:navigate"));
   // the address is left as it is: a #section in it would turn every later reload into a deep link
-  scrollToTarget(el);
+  scrollToTarget(el, navClearance(el));
 });
 
 document.fonts?.ready.then(() => ScrollTrigger.refresh());
