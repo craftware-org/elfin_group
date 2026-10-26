@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { clamp, damp, smooth } from "./math.js";
 
-// Hubballi, Karnataka
-const HUBBALLI = { lat: 15.3647, lon: 75.124 };
+// Elfin Nebula site, Gopankoppa Sulla Road, Hubballi (from the client's Google Maps pin)
+const HUBBALLI = { lat: 15.379388, lon: 75.146803 };
 const GOLD = new THREE.Color("#c98c34");
 
 /** Point on a unit sphere that matches SphereGeometry's equirectangular UVs. */
@@ -213,7 +213,7 @@ export function createEarthWorld({ loader, quality }) {
     tilt.rotation.z = THREE.MathUtils.lerp(-0.32, 0, dive);
     clouds.rotation.y = time * 0.006;
     // Final plunge: clouds thicken as we fall towards Hubballi, then the haze takes over.
-    const veil = smooth(clamp((p - 0.325) / 0.075));
+    const veil = smooth(clamp((p - 0.355) / 0.045));
     clouds.material.opacity = THREE.MathUtils.lerp(0.75 * (1 - dive * 0.8), 1, veil);
 
     // Globe sits right of the headline on desktop, low and centred on portrait.
@@ -245,6 +245,6 @@ export function createEarthWorld({ loader, quality }) {
     camera,
     update,
     /** world-space anchors for DOM labels */
-    labels: [{ key: "hubballi", text: "Hubballi, Karnataka", chapter: 1, get: () => anchor, visible: () => pinVis > 0.6 }],
+    labels: [{ key: "hubballi", text: "Hubballi, Karnataka", chapter: 0, get: () => anchor, visible: () => pinVis > 0.6 }],
   };
 }

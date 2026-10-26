@@ -44,7 +44,11 @@ function splitWords(el) {
   return words;
 }
 
-export function initChapters({ chapters, starts, reduceMotion }) {
+/**
+ * gaps[i]: progress before starts[i] by which the previous chapter has fully left, so a
+ * transition (the space → ground flash) can play with no copy on screen.
+ */
+export function initChapters({ chapters, starts, gaps = [], reduceMotion }) {
   const model = chapters.map((ch, ci) => {
     const items = [];
     const push = (el, kind) => el && items.push({ el, kind, last: "" });
@@ -54,7 +58,7 @@ export function initChapters({ chapters, starts, reduceMotion }) {
     ch.querySelectorAll(".chips li").forEach((li) => push(li, "chip"));
     ch.querySelectorAll(".chapter__actions .btn").forEach((b) => push(b, "line"));
     const start = starts[ci];
-    const end = ci < starts.length - 1 ? starts[ci + 1] : Infinity;
+    const end = ci < starts.length - 1 ? starts[ci + 1] - (gaps[ci + 1] || 0) : Infinity;
     return { ch, items, start, end, shown: null };
   });
 

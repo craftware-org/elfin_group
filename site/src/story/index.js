@@ -1,11 +1,32 @@
 import * as THREE from "three";
 import { createEarthWorld } from "./earth.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { createGroundWorld } from "./ground.js";
 import { bump, clamp, damp } from "./math.js";
 
-/** Chapter start points along the story's scroll progress (0..1). */
-export const CHAPTERS = [0, 0.12, 0.4, 0.63, 0.82];
-const SWITCH = 0.4; // earth → ground hand-off, hidden by the flash
+/** Chapter start points along the story's scroll progress (0..1): Elfin Group (globe + dive),
+ *  Elfin Nebula, plots, every location. */
+export const CHAPTERS = [0, 0.3, 0.6, 0.88];
+
+/* The two worlds were authored on a 5-chapter timeline. Scroll progress is remapped onto it
+   piecewise. Chapter 2 starts at world 0.44, after the space → ground flash (world 0.37–0.418)
+   has fully cleared, so the flash plays while chapter 1's copy fades out and the Nebula copy
+   only ever builds over the finished scene. */
+const NEW_KNOTS = [0, 0.3, 0.6, 0.88, 1];
+const OLD_KNOTS = [0, 0.44, 0.63, 0.82, 1];
+/** world-timeline shots, used to show each 3D label only during its own shot */
+const SHOTS = [0, 0.4, 0.63, 0.82];
+const shotAt = (q) => SHOTS.reduce((c, s, i) => (q >= s ? i : c), 0);
+function toWorld(p) {
+  for (let i = 0; i < NEW_KNOTS.length - 1; i++) {
+    if (p <= NEW_KNOTS[i + 1]) {
+      const t = (p - NEW_KNOTS[i]) / (NEW_KNOTS[i + 1] - NEW_KNOTS[i]);
+      return OLD_KNOTS[i] + t * (OLD_KNOTS[i + 1] - OLD_KNOTS[i]);
+    }
+  }
+  return 1;
+}
+const SWITCH = 0.4; // earth → ground hand-off (world timeline), hidden by a brief flash
 
 export function chapterAt(p) {
   let c = 0;
@@ -18,11 +39,14 @@ function detectQuality() {
   const weak = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4;
   const saveData = !!navigator.connection?.saveData;
   const low = small || weak || saveData;
+  // Phones: 1.75x with antialiasing stays crisp on a dense screen at about half the pixels of native
+  // density (2.5–3x, which a phone GPU can't fill at a steady frame rate while scrolling); adaptive
+  // resolution steps down from there if frames still run slow.
   return {
     low,
     shadows: !low,
-    dpr: Math.min(window.devicePixelRatio || 1, low ? 1.5 : 1.75),
-    minDpr: weak || saveData ? 0.75 : 1,
+    dpr: Math.min(window.devicePixelRatio || 1, saveData || (small && weak) ? 1.5 : 1.75),
+    minDpr: 1,
   };
 }
 
@@ -41,7 +65,7 @@ export function supportsWebGL() {
  */
 export async function createStory({ canvas, stage, labelLayer, haze, onLoadProgress, onFrame }) {
   const quality = detectQuality();
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !quality.low, powerPreference: "high-performance" });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(quality.dpr);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -63,6 +87,11 @@ export async function createStory({ canvas, stage, labelLayer, haze, onLoadProgr
   // The 3D signboards are drawn with Bebas Neue, so make sure it is loaded first.
   await document.fonts?.load(`400 64px "Bebas Neue"`).catch(() => {});
   const ground = createGroundWorld({ quality });
+  // soft image-based light: glass, metal and plaster pick up believable reflections and bounce
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  ground.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  ground.scene.environmentIntensity = 0.35;
+  pmrem.dispose();
   const worlds = [earth, ground];
 
   /* DOM labels anchored to 3D points */
@@ -143,12 +172,14 @@ export async function createStory({ canvas, stage, labelLayer, haze, onLoadProgr
     const dt = rawDt;
     frames++;
     frameTime += dt;
-    if (frames < 90) return;
+    // react within half a second to slow frames, but take longer to win resolution back
+    if (frames < 30) return;
     const avg = frameTime / frames;
+    if (avg <= 1 / 48 && frames < 120) return;
     frames = 0;
     frameTime = 0;
     let next = dpr;
-    if (avg > 1 / 45 && dpr > quality.minDpr) next = Math.max(quality.minDpr, dpr - 0.25);
+    if (avg > 1 / 48 && dpr > quality.minDpr) next = Math.max(quality.minDpr, dpr - 0.25);
     else if (avg < 1 / 58 && dpr < maxDpr) next = Math.min(maxDpr, dpr + 0.125);
     if (next !== dpr) {
       dpr = next;
@@ -157,17 +188,60 @@ export async function createStory({ canvas, stage, labelLayer, haze, onLoadProgr
     }
   }
 
-  function placeLabels(world, camera, chapter, hidden) {
+  // Labels never cover the chapter copy (top of the screen in portrait, left column on desktop).
+  const copy = [...stage.querySelectorAll(".chapter")];
+  let copyFor = -1;
+  let copyRect = null;
+  new ResizeObserver(() => (copyFor = -1)).observe(stage);
+
+  const placed = []; // screen rects of the labels already placed this frame
+  function placeLabels(world, camera, chapter, shot, hidden) {
+    const portrait = width / height < 0.9;
+    if (copyFor !== chapter) {
+      copyFor = chapter;
+      copyRect = copy[chapter]?.getBoundingClientRect() ?? null;
+    }
+    placed.length = 0;
     for (const l of labels) {
-      const show = !hidden && l.world === world && l.chapter === chapter && (!l.visible || l.visible());
+      // phones get the short name, so all of them fit across the narrow frame
+      const text = portrait && l.short ? l.short : l.text;
+      if (l.el.textContent !== text) {
+        l.el.textContent = text;
+        l.w = l.h = 0;
+      }
+      const show = !hidden && l.world === world && l.chapter === shot && (!l.visible || l.visible());
       if (show) {
         v.copy(l.get()).project(camera);
-        // NDC y runs -1 (bottom) to 1 (top). In portrait the copy owns the top ~45%, so labels stay below it.
-        const maxY = width / height < 0.9 ? 0.1 : 1.05;
-        const onScreen = v.z < 1 && Math.abs(v.x) < 0.95 && v.y < maxY && v.y > -1.05;
+        let x = (v.x * 0.5 + 0.5) * width;
+        let y = (-v.y * 0.5 + 0.5) * height;
+        // labels are drawn ~40px above their anchor: keep them clear of the nav bar and, in portrait, the copy
+        const minY = portrait && copyRect ? Math.max(110, copyRect.bottom + 52) : 110;
+        l.w ||= l.el.offsetWidth;
+        l.h ||= l.el.offsetHeight;
+        // keep the whole pill on screen; it is centred on its anchor
+        x = Math.min(Math.max(x, l.w / 2 + 10), width - l.w / 2 - 10);
+        // never stack two pills on top of each other: try small steps up, down and sideways until clear
+        const step = l.h + 6;
+        const clear = (cx, cy) => {
+          const top = cy - 1.3 * l.h;
+          return !placed.some((r) => cx - l.w / 2 < r[2] + 6 && cx + l.w / 2 > r[0] - 6 && top < r[3] + 4 && top + l.h > r[1] - 4);
+        };
+        const tries = [];
+        for (const k of [0, -1, 1, -2, 2, -3]) for (const f of [0, -0.5, 0.5, -1, 1]) tries.push([f * l.w, k * step]);
+        const ok = tries.find(([dx, dy]) => {
+          const cx = Math.min(Math.max(x + dx, l.w / 2 + 10), width - l.w / 2 - 10);
+          return clear(cx, y + dy);
+        });
+        if (ok) {
+          x = Math.min(Math.max(x + ok[0], l.w / 2 + 10), width - l.w / 2 - 10);
+          y += ok[1];
+        }
+        const overCopy = !portrait && copyRect && x - l.w / 2 < copyRect.right + 16 && y > copyRect.top && y - 44 < copyRect.bottom;
+        // no free spot at all: leave this one out rather than draw it over another label
+        const crowded = !ok;
+        const onScreen = v.z < 1 && Math.abs(v.x) < 0.95 && v.y > -1.05 && y > minY && !overCopy && !crowded;
         if (onScreen) {
-          const x = (v.x * 0.5 + 0.5) * width;
-          const y = (-v.y * 0.5 + 0.5) * height;
+          placed.push([x - l.w / 2, y - 1.3 * l.h, x + l.w / 2, y - 0.3 * l.h]);
           l.el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -130%)`;
         }
         l.el.classList.toggle("is-visible", onScreen);
@@ -178,11 +252,22 @@ export async function createStory({ canvas, stage, labelLayer, haze, onLoadProgr
   }
 
   let lastHaze = -1;
+  // On phones and low-power devices a scene at rest (nothing scrolling) is drawn at half rate:
+  // the slow ambient motion doesn't need 60 fps, and the freed GPU/CPU time keeps scrolling smooth.
+  let skip = false;
+  let skipped = 0; // time of a skipped frame, carried into the next drawn one
   renderer.setAnimationLoop(() => {
     timer.update();
-    const rawDt = timer.getDelta();
-    const dt = Math.min(rawDt, 0.05);
     if (!visible) return;
+    const resting = quality.low && !resync && Math.abs(target - p) < 1e-4;
+    skip = resting && !skip;
+    if (skip) {
+      skipped = timer.getDelta();
+      return;
+    }
+    const rawDt = timer.getDelta() + skipped;
+    skipped = 0;
+    const dt = Math.min(rawDt, 0.05);
     const time = timer.getElapsed();
     // Coming back into view (or first frame): jump straight to where the page is.
     if (resync) {
@@ -195,24 +280,27 @@ export async function createStory({ canvas, stage, labelLayer, haze, onLoadProgr
     pointer.y = damp(pointer.y, pointer.ty, 2.2, dt);
 
     const chapter = chapterAt(p);
-    const h = bump(p, 0.335, SWITCH, 0.48);
+    const q = toWorld(p);
+    // short sunlit flash that hides the space → ground cut (about a tenth of a screen of scroll)
+    const h = bump(q, 0.385, SWITCH, 0.41) * 0.9;
     if (Math.abs(h - lastHaze) > 0.001) {
       haze.style.opacity = h.toFixed(3);
       lastHaze = h;
     }
 
-    if (p < SWITCH) {
-      earth.update({ p, dt, time, aspect: width / height, pointer });
+    if (q < SWITCH) {
+      earth.update({ p: q, dt, time, aspect: width / height, pointer });
       renderer.render(earth.scene, earth.camera);
-      placeLabels(0, earth.camera, chapter, h > 0.3);
+      placeLabels(0, earth.camera, chapter, shotAt(q), h > 0.3);
     } else {
-      ground.update({ p, dt, time, pointer });
+      ground.update({ p: q, dt, time, pointer, aspect: width / height });
       if (ground.shadowsDirty) renderer.shadowMap.needsUpdate = true;
       renderer.render(ground.scene, ground.camera);
-      placeLabels(1, ground.camera, chapter, h > 0.3 || p < 0.45);
+      placeLabels(1, ground.camera, chapter, shotAt(q), h > 0.3 || q < 0.43);
     }
     onFrame?.(p, time);
-    adapt(rawDt);
+    // half-rate frames are slow on purpose, not a sign of an overloaded GPU
+    if (!resting) adapt(rawDt);
   });
 
   return {

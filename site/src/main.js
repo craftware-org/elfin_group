@@ -7,6 +7,7 @@ import Lenis from "lenis";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { initChapters } from "./chapters.js";
+import { initStoryIntro } from "./storyIntro.js";
 import { initUI } from "./ui.js";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -18,6 +19,13 @@ const $ = (s, r = document) => r.querySelector(s);
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ---------------- smooth scroll ---------------- */
+// Every visit and every reload starts at the hero (the globe), wherever the page was and whatever
+// #section is in the address, so the opening glide always plays. ScrollTrigger owns the browser's scroll
+// memory (it writes it back on every refresh), so it is switched off through ScrollTrigger itself.
+ScrollTrigger.clearScrollMemory("manual");
+if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+window.scrollTo(0, 0);
+
 let lenis = null;
 if (!reduceMotion) {
   lenis = new Lenis({ lerp: 0.075, smoothWheel: true, wheelMultiplier: 0.85, touchMultiplier: 1.3 });
@@ -25,11 +33,13 @@ if (!reduceMotion) {
   gsap.ticker.add((t) => lenis.raf(t * 1000));
   gsap.ticker.lagSmoothing(0);
 }
-const scrollToTarget = (target) => {
+const scrollToTarget = (target, offset = 0) => {
   const el = typeof target === "string" ? $(target) : target;
   if (!el) return;
-  if (lenis) lenis.scrollTo(el, { offset: 0, duration: 1.8, easing: (t) => 1 - Math.pow(1 - t, 4) });
-  else el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
+  // the page may have just grown (a folded section opened): measure it again before scrolling
+  lenis?.resize();
+  if (lenis) lenis.scrollTo(el, { offset, duration: 1.8, easing: (t) => 1 - Math.pow(1 - t, 4) });
+  else window.scrollTo({ top: el.getBoundingClientRect().top + scrollY + offset, behavior: reduceMotion ? "auto" : "smooth" });
 };
 
 /* ---------------- scroll progress line ---------------- */
@@ -42,8 +52,10 @@ if (lenis) lenis.on("scroll", setProgressLine);
 else addEventListener("scroll", setProgressLine, { passive: true });
 
 /* ---------------- story chapters ---------------- */
-const CHAPTER_STARTS = [0, 0.12, 0.4, 0.63, 0.82];
-const chapters = initChapters({ chapters: [...document.querySelectorAll(".chapter")], starts: CHAPTER_STARTS, reduceMotion });
+const CHAPTER_STARTS = [0, 0.3, 0.6, 0.88];
+// the Elfin Group copy is gone before the sunlit flash (0.25–0.29) so nothing sits half-built on it
+const CHAPTER_GAPS = [0, 0.045, 0, 0];
+const chapters = initChapters({ chapters: [...document.querySelectorAll(".chapter")], starts: CHAPTER_STARTS, gaps: CHAPTER_GAPS, reduceMotion });
 const rail = [...document.querySelectorAll("#storyRail li")];
 const count = $("#storyCount");
 let activeChapter = -1;
@@ -64,77 +76,76 @@ setHud(0);
 
 /* ---------------- preloader ---------------- */
 const loader = $("#loader");
-const loaderBar = $("#loaderBar");
-const loaderPct = $("#loaderPct");
+// the intro holds until the 3D story has loaded (its hairline is decorative, not a progress bar)
 const started = performance.now();
-let shown = 0;
-function setLoad(v) {
-  shown = Math.max(shown, v);
-  loaderBar.style.transform = `scaleX(${shown.toFixed(3)})`;
-  loaderPct.textContent = `${Math.round(shown * 100)}%`;
-}
 
 let finished = false;
 function finishLoading() {
   if (finished) return;
   finished = true;
-  setLoad(1);
-  const wait = Math.max(0, 1100 - (performance.now() - started));
+  // long enough for the wordmark to settle, even on a fast connection
+  const wait = Math.max(0, 3000 - (performance.now() - started));
   setTimeout(playEntrance, wait);
 }
 
-/** Loader irises shut into the nav logo, then the hero builds itself. */
+/** The wordmark opens out and the intro dissolves into the 3D story, which builds itself. */
 function playEntrance() {
-  const badge = $(".loader__badge");
-  const brand = $(".nav__brand");
-  const b = badge.getBoundingClientRect();
-  const n = brand.getBoundingClientRect();
-  const cx = n.left + n.width / 2;
-  const cy = n.top + n.height / 2;
+  // scrolling is allowed as soon as the intro screen has faded, not after the whole entrance has played
+  const unlock = () => {
+    lenis?.start();
+    intro?.release();
+  };
   const done = () => {
     loader.classList.add("is-done");
     document.body.classList.remove("is-loading");
-    lenis?.start();
+    unlock();
     ScrollTrigger.refresh();
+    // belt and braces: the page must be at the hero when the intro ends (a late layout shift or the
+    // browser's own restore can move it while the intro is on screen)
+    if (scrollY > 2 && !document.documentElement.classList.contains("lenis-scrolling")) {
+      if (lenis) lenis.scrollTo(0, { immediate: true, force: true });
+      else window.scrollTo(0, 0);
+    }
+    if (intro) {
+      // the globe and "Elfin Group" hold for a moment, then the dive to Elfin Nebula plays by itself
+      intro.autoplay(700);
+    } else {
+      // reduced motion (often switched on by phone power-saving): no long glide, a direct cut instead
+      setTimeout(() => {
+        const s = $("#story");
+        if (scrollY < 2) window.scrollTo(0, s.offsetTop + (s.offsetHeight - innerHeight) * 0.345);
+      }, 1600);
+    }
   };
   if (reduceMotion) {
     done();
     chapters.playIntro(gsap);
     return;
   }
+  gsap.set(".loader__word span", { animation: "none", opacity: 1 });
   const tl = gsap.timeline({ onComplete: done });
-  tl.to([".loader__bar", ".loader__label"], { opacity: 0, y: 10, duration: 0.5, ease: "power2.in" })
-    .to(
-      badge,
-      {
-        x: cx - (b.left + b.width / 2),
-        y: cy - (b.top + b.height / 2),
-        scale: n.width / b.width,
-        duration: 1.25,
-        ease: "expo.inOut",
-      },
-      0.15,
-    )
-    .fromTo(
-      loader,
-      { clipPath: `circle(150% at ${cx}px ${cy}px)` },
-      { clipPath: `circle(0% at ${cx}px ${cy}px)`, duration: 1.35, ease: "expo.inOut" },
-      0.3,
-    )
+  tl.to(".loader__bar", { opacity: 0, duration: 0.5, ease: "power2.in" })
+    .to(".loader__logo", { y: -14, opacity: 0, duration: 0.9, ease: "power2.in" }, 0.05)
+    .to(".loader__word span", { opacity: 0, y: -8, duration: 0.8, ease: "power2.in", stagger: 0.08 }, 0)
+    .to(loader, { opacity: 0, duration: 1.1, ease: "power2.inOut" }, 0.55)
+    .fromTo(".nav__brand", { opacity: 0 }, { opacity: 1, duration: 1.2, ease: "power2.out" }, 0.9)
     .fromTo("#storyCanvas", { scale: 1.18, opacity: 0 }, { scale: 1, opacity: 1, duration: 2.6 }, 0.55)
+    .add(unlock, 0.8)
     .add(() => chapters.playIntro(gsap), 0.95)
     .fromTo(
-      [".nav__links a", ".nav__cta", ".nav__toggle"],
+      [".nav__links > a", ".nav__parent", ".nav__cta", ".nav__toggle"],
       { y: -18, opacity: 0 },
       { y: 0, opacity: 1, duration: 1.1, stagger: 0.06 },
       1.15,
     )
-    .fromTo([".story__hud", ".story__skip"], { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 1.2, stagger: 0.1 }, 1.4)
-    .set(badge, { opacity: 0 });
+    .fromTo([".story__hud", ".story__skip"], { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 1.2, stagger: 0.1 }, 1.4);
 }
 
 lenis?.stop();
 const loaderFailsafe = setTimeout(finishLoading, 9000);
+
+// one scroll from the globe lands on Elfin Nebula (story progress 0.345: the towers' overview)
+const intro = lenis ? initStoryIntro({ lenis, story: $("#story"), stop: 0.345 }) : null;
 
 /* ---------------- 3D story ---------------- */
 async function bootStory() {
@@ -163,7 +174,6 @@ async function bootStory() {
       stage: $(".story__stage"),
       labelLayer: $("#storyLabels"),
       haze: $("#storyHaze"),
-      onLoadProgress: (v) => setLoad(0.1 + v * 0.85),
       onFrame: (p) => {
         chapters.update(p);
         setHud(p);
@@ -177,7 +187,6 @@ async function bootStory() {
   }
 }
 
-setLoad(0.05);
 bootStory().finally(() => {
   clearTimeout(loaderFailsafe);
   finishLoading();
@@ -198,8 +207,8 @@ document.addEventListener("click", (e) => {
   if (!el) return;
   e.preventDefault();
   document.dispatchEvent(new CustomEvent("elfin:navigate"));
+  // the address is left as it is: a #section in it would turn every later reload into a deep link
   scrollToTarget(el);
-  history.replaceState(null, "", id);
 });
 
 document.fonts?.ready.then(() => ScrollTrigger.refresh());
